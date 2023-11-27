@@ -50,6 +50,7 @@ To answer this we compare different inflation forecast methods for the US case. 
 \subsection{Metrics}
 The main metric for evaluating the inflation forecast methods is the root mean squared error (RMSE), which measures the average deviation of the forecasted values from the actual values. The lower the RMSE, the better the forecast method.
 The RMSE of a naive forecast method (such as a random walk or a no-change forecast) will be shown as benchmark.
+Apart from the RMSE we look (out of sample in the test data) at the sample mean. As I will explain later on, it makes the exercise more useful to split the data into test and train using a timestamp (and not using random shuffling). It is not guaranteed that out of sample the error is zero on average. Therefore, looking at the average error is also useful. 
 
 \section{Analysis}
 \subsection{Data Exploration}
@@ -219,17 +220,11 @@ Inflation\_Exp\_Market\_1YR & 1982-01-31  & Market expectation of inflation (1Y 
 
 \subsection{Data Visualization}
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=1\textwidth]{cpi_vs_trend.pdf}
-    \caption{CPI (seasonally) adjusted index over time}
-    \label{fig:cpi_vs_trend}
-\end{figure}
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=1\textwidth]{cpi_vs_target_yoy.pdf}
-    \caption{Year over Year changes of CPI vs target}
+    \caption{Year over Year changes of CPI (seasonally adjusted) vs target}
     \label{fig:cpi_vs_target_yoy}
 \end{figure}
 
@@ -248,9 +243,9 @@ Inflation\_Exp\_Market\_1YR & 1982-01-31  & Market expectation of inflation (1Y 
     \label{fig:weights}
 \end{figure}
 
- build data visualization based on the data exploration in the 
+Figure \ref{fig:cpi_vs_target_yoy} shows how the CPI increases over time. The inflation target of the FED is 2\% p.a.. We see that the FED has missed the target in the long run. However, this is due to certain periods where inflation overshoots (like 1970-1984) or the most recent episode. There has been longer periods where the inflation moves in line with the target (1989-2020). It is important to note that the CPI is often commented in year over year (YoY) changes. However, YoY are easy to forecast before the data realease because before the releases 11 out of the 12 months that make a YoY datapoint are already known (so called based effects). It is much harder to forecast the month over month (MoM) changes that are shown in figure  \ref{fig:cpi_vs_target_mom}. In the following we are going to forecast YoY changes of the CPI but with a forecasting horizon of 12 months. This means we are forecasting YoY inflation in one years time and so we do not make the exercise easier by incorporating base effects. 
+Figure \ref{fig:weights} shows the weights of the items in the CPI basket over time. As already pointed out shelder is one of the most important compents. Note also that the weights do not sum up to 100\%. This is due to missing data and to the fact that some items that are part of the CPI today did not exist 40 years ago (i.e. Video and audio). Missing data is one topic to be treated separately. 
 
-Average inflation, distribution, volatility by item, weights over time, seasonality, 
 
 \section{Methodology}
 \subsection{Data Preprocessing}
@@ -287,17 +282,170 @@ The weighting data from the BLS war hard to clean. The history does not come thr
 \item Between 2018 and 2022 the data comes in individual txt files (one file per year). 
 \end{itemize}
 
-describe the steps taken to preprocess the data and address any abnormalities in the data sets. If data preprocessing is not needed, please explain why.
+
 \subsection{Implementation}
-discuss the process using the models, algorithms, and techniques applied to solve the problem. Any complications during the implementation should be mentioned.
+I decide to split the data as follows:
+\begin{itemize}
+\item Train set: until December 2014
+\item Test set: January 2015 - now
+\end{itemize}
+Note, that in computer science test and train sets are often computed by random splits. Here I do not want to have this approach since datapoints are autocorrelated. I fear that if the model sees part of the Corona inflation schock it fits to it. 
 
 
-Lasso, Elastic net.
-Regression, moving averages, univarite, economic variables, quadratic
+The dataset has a lot of missing values as discussed in the previous sections. The standard approach is to drop the data so that we have a dataset without missing values. However, this simple approach is not suitable here. By dropping the data we miss periods which are very interesting from an economical point of view (like the inflation period in the 1970s). Moreover, the missing data should not be a big problem since it often involes only items that have a low weight in the CPI basket (like audio). I therefore decided to fill the missing missing values as follows:
+\begin{itemize}
+\item Weight of the items in the CPI basket: Fill with 0 (realistic since the items simply did not exist). Rescale the weights so that they sum up to one (see figure \ref{fig:weights})
+\item CPI items: Fill with the value of the overall CPI. This means that the assumption is that an item simply moved in line with the overall price level if missing/non-existent.
+\item Other Economic data: Fill with the insample mean of the data. Here I make sure not to use data that belongs to the test set (i.e. data after January 2015).
+\end{itemize}
+
+As we see in table \ref{table:motivation} some variables are in percentage points and can be assumed to be stationary, whereas other variables come in Levels (i.e. exchange rates). For variables that come in levels we take pct differences before passing them to the model. It does not make any sense to forecast the inflation using the absolute level of i.e. the exchange rate GBP/USD. It is more realistic to assume that the pct change in the exchange rate (i.e. the USD has gained 4\% against GBP) does influence CPI.
+
+\subsubsection{Benchmark models}
+I start with simple (naive) models that can be used as a benchmark. Figure \ref{fig:cb_model} shows the out of sample results of a model that simply uses 2\% as inflation forecast. 2\% is the inflation forecast that the FED uses as long term target.
+ Figure \ref{fig:naive_model} shows the out of sample results of a model that simply uses the historical mean as a forecast. Since the historical mean has been higher than 2\% and the covid shock has led to inflation shooting over 2\%, the mean model is doing better than the 2\% model. Both models have the same RMSE (since they predict constant values) but the mean model has a lower average error.
 
 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{centralbanktargetmodel.pdf}
+    \caption{Out of sample precdiction of a benchmark model that predicts inflation to be at the central bank target (2\%)}
+    \label{fig:cb_model}
+\end{figure}
+
+
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{naivemodel.pdf}
+    \caption{Out of sample precdiction of a benchmark model that predicts inflation to be at the historical (-2014) mean}
+    \label{fig:naive_model}
+\end{figure}
+
+
+\subsubsection{Univariate time series models}
+\label{sec:univts}
+The next models I would like to test is to forecast inflation as follows:
+\begin{equation}
+\label{eq:ma}
+CPI_{YoY, t, t+12} = \alpha + \beta \cdot MA(CPI_{MoM,t-6,t})+\epsilon
+\end{equation}
+
+I.e. those models look predict inflation using an historical average and a moving average (the average of the MoM changes over the past 6 months) to predict future inflation. I estimate the model using OLS and I get the result shown in \ref{fig:univariatetimeseriesmodelma}. The model has a better out of sample RMSE than the naive ones. The beta coefficient is estimated to be positive. This is interesting and means that the model does not capture mean reversion features of inflation but rather predicts high past inflation to be a sign of high inflation in the future. We see this also clearly in the figure \ref{fig:univariatetimeseriesmodelma}.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{univariatetimeseriesmodelma.pdf}
+    \caption{Out of sample precdiction of a model that uses the 6 month realized inflation to forecast the future inflation.}
+    \label{fig:univariatetimeseriesmodelma}
+\end{figure}
+
+An extension of the model would be to use several moving averages (like the 2 and 6 month average). The motivation is that we may want the model to react to short term CPI developments quickly. 
+\begin{equation}
+CPI_{YoY, t, t+12} = \alpha + \beta_1 \cdot MA(CPI_{MoM,t-6,t})+ \beta_2 \cdot MA(CPI_{MoM,t-2,t})+\epsilon
+\end{equation}
+
+Figure \ref{fig:univariatetimeseriesmodelma2and6} shows the results of such a model. The RMSE is lowered compared to the model in figure \ref{fig:univariatetimeseriesmodelma}. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{univariatetimeseriesmodelma2and6.pdf}
+    \caption{Out of sample precdiction of a model that uses the 2 and 6 month realized inflation to forecast the future inflation.}
+    \label{fig:univariatetimeseriesmodelma2and6}
+\end{figure}
+In section \ref{sec:Refinement} we will use a cross-validation approach to find the best moving averages.
+
+\subsubsection{Bottom up aggregation models}
+\label{sec:agg}
+In this section, I use models that estimate each component of the CPI separately and then aggregate them up using CPI weights. The motivation is that some parts of the CPI may behave differently than other (i.e. being more or less sticky/mean reverting). 
+Each component of the CPI is modelled as in equation \ref{eq:ma}. 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{bottomupaggregationmodelma6forindividualvars.pdf}
+    \caption{Out of sample precdiction of a model that predicts inflation components individually and sums them up using basket weights.}
+    \label{fig:bottomupaggregationmodelma6forindividualvars}
+\end{figure}
+
+The results are shown in \ref{fig:bottomupaggregationmodelma6forindividualvars}. Interestingly, the model results in worse prediction than the simple model shown in \ref{fig:univariatetimeseriesmodelma}. So it seems that it is not worth forecasting each variable indepedently.  In table \ref{table:forecast_by_item_r2} I show the in sample R2 that I get for forecasting the individual compoentns, as well as the average weight they have in the out of sample period.
+We see huge differences in forecasting power of individual components in the CPI. I.e. Food can be forecasted very poorly and makes 14.4\% of the CPI. Also private transportation cannot be forecasted accurately, but makes 15.9\% of the CPI. 
+In section  \ref{sec:Refinement} I will test if it makes sense to just forecast some parts of the CPI and leave the ones that cannot be forecasted. 
+
+\begin{adjustwidth}{-2cm}{}
+\begin{table}
+
+\begin{tabular}{lrr}
+{} & {R2} & {avg. weight (2015-2023)} \\
+Private transportation & 0.7\% & 15.9\% \\
+Public transportation & 1.5\% & 1.1\% \\
+Womens and girls apparel & 4.3\% & 1.2\% \\
+Footwear & 9.3\% & 0.7\% \\
+Fuels and utilities & 12.6\% & 4.9\% \\
+Tobacco and smoking products & 14.0\% & 0.6\% \\
+Infants and toddlers apparel & 15.8\% & 0.1\% \\
+Mens and boys apparel & 18.6\% & 0.7\% \\
+Food & 19.3\% & 14.4\% \\
+Household furnishings and operations & 40.0\% & 4.7\% \\
+Shelter & 48.3\% & 35.1\% \\
+Education & 49.7\% & 3.1\% \\
+Personal care & 51.8\% & 2.6\% \\
+Medical care services & 53.6\% & 7.3\% \\
+Medical care commodities & 54.4\% & 1.8\% \\
+Video and audio & 56.3\% & 1.7\% \\
+Communication & 60.8\% & 3.9\% \\
+\end{tabular}
+
+
+\caption{Forcasting power on the indivual CPI items, as well as average weight.}
+\label{table:forecast_by_item_r2}
+\end{table}
+\end{adjustwidth}
+
+
+\subsubsection{Using additional economic variables}
+\label{sec:eco}
+In this section I estimate the model presented in \ref{fig:univariatetimeseriesmodelma} but I add as independent variables the additional economic variables introduced in \ref{table:motivation}.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{ma6modelwithaddeconomicvariables.pdf}
+    \caption{Out of sample precdiction of a model that uses the 6 month realized inflation and the variables outlined in table \ref{table:motivation} to forecast the future inflation.}
+    \label{fig:ma6modelwithaddvars}
+\end{figure}
+The results are shown in \ref{fig:ma6modelwithaddvars}. The model shows an improvement relative to the simple MA models outlined above. We will see in the section \ref{sec:Refinement} if it makes sense to remove some variables. 
 
 \subsection{Refinement}
+\label{sec:Refinement}
+
+Until now we have seen the following results. 
+\begin{itemize}
+\item Moving average models that use 2-6 month realized inflation to forecast future inflation work reasonably well.
+\item Bottom up aggregation models do not work. The components of the CPI basket differ in their difficulty to forecast.
+\item Using additional economic variables shows promising results. However, until now we are using too much of them.
+\end{itemize}
+
+In this section I use cross-validation techniques to fine tune the parameters. The parameters are fitted on the training data (i.e. up to 2014).
+Regarding the models in section\ref{sec:univts}, I investigate if other moving averages do better jobs. I test all the the 1-18 month lags and up to 3 moving averages. So I test (using a grid search) 833 parameter combinations. The best model is one that uses the 1 and the 7 month moving average. It is shown in figure \ref{fig:ma17modelfoundusingcrossvalidation}. The RMSE is reduced further compared to the previous models, althouhg the difference is not large.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{ma17modelfoundusingcrossvalidation.pdf}
+    \caption{Out of sample precdiction of a model that uses the 1 and 7 month realized inflation to forecast the future inflation. This is the best parametrization found using cross validation.}
+    \label{fig:ma17modelfoundusingcrossvalidation}
+\end{figure}
+
+
+Regarding the bottom up aggregation models presentend in section \ref{sec:agg}, I test whether we get better results by just aggregating up some subcomponents. I run a grid search to select up to 5 subcomponents that we forecast individually and then aggregate them up. The chosen variables are 'Shelter',  'Medical care services', 'Video and audio',
+  'Communication'The models perform worse than the simple moving average models outlined above. Thus we conclude that it is not worth aggregating up the individual forecasts. 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{bottomupaggregationmodelfoundusingcrossvalidation.pdf}
+    \caption{Out of sample precdiction of a model that predicts inflation components individually and sums them up using basket weights. Using cross validation we try to select up to 5 components that we forecast individually. }
+    \label{fig:bottomupaggregationmodelfoundusingcrossvalidation}
+\end{figure}
+
+
+
+Regarding the models presentend in section \ref{sec:eco}, I test whether we get better results by just using some of the economic varialbes outlined in table \ref{table:motivation}. I run a grid search to select up to 5 varialbes that can be used to enhance the MA 1, 7 model. 
+
+
+
 describe the process to refine the algorithms and techniques, such as using cross-validation or changing the parameter settings.
 
 \section{Results}

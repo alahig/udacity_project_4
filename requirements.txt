@@ -1,0 +1,9 @@
+notebook
+numba
+numpy
+pandas
+plotly
+scikit-image
+scikit-learn
+scipy
+SQLAlchemy
