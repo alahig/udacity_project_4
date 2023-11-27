@@ -1,7 +1,12 @@
 \documentclass[12pt]{article}
 \usepackage{graphicx}
+\usepackage{svg}
 \usepackage{amsmath}
 \usepackage{hyperref}
+\usepackage{booktabs} 
+\usepackage[showframe=false]{geometry}
+\usepackage{changepage}
+\usepackage{longtable}
 
 \title{Forecasting US Inflation}
 \author{Udacity Data Scientist Nanodegree Capstone project}
@@ -14,29 +19,293 @@
 
 \section{Project Definition}
 \subsection{Project Overview}
-state the high-level overview of the project, including the background information such as problem domain, project origin, and related data sets or input data.
+
+This is the Udacity Data Scientist Nanodegree Capstone project. The aim is to demonstrate the concepts learned in the programme. To do this, I have set up a project that includes
+\begin{itemize}
+\item Collecting the data (web scrap and using APIs)
+\item Cleaning and storing the data in a database
+\item Writing modular, documented code 
+\item Analysing different learning algorithms
+\item Drawing conclusions and communicating them
+\end{itemize}
+
+Because of my background, I decided to work on an economic problem, namely forecasting inflation. Inflation measures the general increase in the price of goods and services over time. Inflation affects the purchasing power of consumers and is an important economic variable. Inflation forecasting is particularly relevant in the current context of high inflation rates following the COVID pandemic.  The current discussion is whether and how fast inflation will return to pre-COVID levels. 
+
+The aim of this project is to analyse different inflation forecasting methods and to compare their accuracy and reliability. The project will focus on the US case. Macroeconomic variables will be retrieved from the Federal Reserve Economic Data API and by webscraping the BLS homepage.
+
+
 \subsection{Problem Statement}
-define the problem to be solved.
+
+
+The main research question of this project is: Which inflation forecast method is the most accurate and reliable? What is the current prediction in the high inflation environment?
+
+To answer this we compare different inflation forecast methods for the US case. We compare the forecasting power among the following dimensions: 
+\begin{itemize}
+\item Is it helpful to forecast the components of the consumer price index individually and aggregating them?
+\item Do time series models gain forecasting power by adding economic variables (macroeconomic variables, such as output, unemployment, and exchange rates. )?
+\item Does it help to use non-linear models?
+\item How do the model predictions compare to expert forecasts (survey data)?
+\end{itemize}
+
 \subsection{Metrics}
-define the metrics to measure the results and justifications to use the metrics. For example, if you use time-series data sets, what metrics will be appropriate to measure the results.
+The main metric for evaluating the inflation forecast methods is the root mean squared error (RMSE), which measures the average deviation of the forecasted values from the actual values. The lower the RMSE, the better the forecast method.
+The RMSE of a naive forecast method (such as a random walk or a no-change forecast) will be shown as benchmark.
 
 \section{Analysis}
 \subsection{Data Exploration}
-describe the data sets, including the features, data distributions, and descriptive statistics. Identify any abnormalities or specific characteristics inherent in the data sets.
+
+Table \ref{table:overview} shows the subcomponents of the CPI (the parts the CPI) is made of together with the date when the item appeared on the CPI and the distribution of the monthly (seasonally adjusted, non annualized) CPI changes. 
+The "All items" CPI component  (the one we want eventually to forecasts) is available since 1947. On average the monthly increase was 0.29\% but the increases range from -1.77\% to 1.96\%.
+We see that while some items are available for the whole period (like Food) others are only available since 1994 (video and audio) or even 1999 (personal care). This reflects the fact that products which are available to the public change over time. They do not only change the weight in the CPI but completely new products may emerge over time. 
+
+
+
+The most volatile components of the CPI are: 
+\begin{itemize}
+\item Tobacco and smoking products
+\item Private and public transportation
+\item Fuels and utilities 
+\item Food
+\item Apparel (mens and boys, womens and girls, infants)
+\end{itemize}
+
+
+The least volatile components of the CPI are: 
+\begin{itemize}
+\item Education
+\item Medical care
+\item Personal care
+\item Housing
+\end{itemize}
+
+Table \ref{table:weights} shows the weights that the subcomponents (introduced in table \ref{table:overview}) do have in the CPI for some selected years. We do omit most of the years to save space. 
+Observations:
+\begin{itemize}
+\item The most important component has always been Housing and the weight has increased  from 30\% to 40\% over time. 
+\item Food is also an important part of the CPI but its importance has decreased from 30\% to around 15\% over time. 
+\item The next important category is private transportation which has increased from 10\% to 16\% over time. 
+\end{itemize}
+
+
+Table \ref{table:motivation} shows the additional variables used in the analysis which are not the CPI compents itself. The additional variables are motivated by economic reasoning and involve concepts that can be reasonably expected to have an impact on price levels. The variables include, among others:
+\begin{itemize}
+\item Unemployment rates
+\item Loan data
+\item Money supply (money aggregates)
+\item Interest rates
+\item Foreign exchange rates
+\end{itemize}
+The motivation to use the variables is summarized in the table.
+
+
+ \begin{adjustwidth}{-2cm}{}
+\begin{table}
+\begin{tabular}{llrrrr}
+{} & {first date} & {mean} & {std} & {min} & {max} \\
+{FRED Name} & {} & {} & {} & {} & {} \\
+\hspace*{0ex}All items & 1947-01-01 & 0.29\% & 0.34\% & -1.77\% & 1.96\% \\
+\hspace*{4ex}Food and beverages & 1967-01-01 & 0.33\% & 0.41\% & -0.96\% & 5.17\% \\
+\hspace*{8ex}Food & 1947-01-01 & 0.29\% & 0.56\% & -2.32\% & 5.87\% \\
+\hspace*{4ex}Housing & 1967-01-01 & 0.35\% & 0.31\% & -0.81\% & 1.86\% \\
+\hspace*{8ex}Shelter & 1953-01-01 & 0.34\% & 0.35\% & -1.43\% & 2.24\% \\
+\hspace*{8ex}Fuels and utilities & 1953-01-01 & 0.31\% & 0.73\% & -2.40\% & 5.61\% \\
+\hspace*{8ex}Household furnishings and operations & 1967-01-01 & 0.19\% & 0.33\% & -0.64\% & 2.02\% \\
+\hspace*{4ex}Apparel & 1947-01-01 & 0.13\% & 0.47\% & -3.66\% & 1.87\% \\
+\hspace*{8ex}Mens and boys apparel & 1947-01-01 & 0.13\% & 0.58\% & -4.42\% & 2.61\% \\
+\hspace*{8ex}Womens and girls apparel & 1947-01-01 & 0.08\% & 0.75\% & -4.09\% & 2.92\% \\
+\hspace*{8ex}Footwear & 1947-01-01 & 0.19\% & 0.57\% & -2.58\% & 3.10\% \\
+\hspace*{8ex}Infants and toddlers apparel & 1989-01-01 & 0.02\% & 1.39\% & -4.13\% & 9.57\% \\
+\hspace*{4ex}Transportation & 1947-01-01 & 0.30\% & 1.03\% & -10.28\% & 5.87\% \\
+\hspace*{8ex}Private transportation & 1947-01-01 & 0.29\% & 1.07\% & -10.80\% & 6.22\% \\
+\hspace*{8ex}Public transportation & 1989-01-01 & 0.19\% & 1.80\% & -11.62\% & 11.09\% \\
+\hspace*{4ex}Medical care & 1947-01-01 & 0.41\% & 0.31\% & -0.68\% & 1.82\% \\
+\hspace*{8ex}Medical care commodities & 1967-01-01 & 0.32\% & 0.34\% & -0.85\% & 1.45\% \\
+\hspace*{8ex}Medical care services & 1956-01-01 & 0.45\% & 0.31\% & -0.70\% & 2.12\% \\
+\hspace*{4ex}Recreation & 1993-01-01 & 0.11\% & 0.23\% & -0.60\% & 0.87\% \\
+\hspace*{8ex}Video and audio & 1994-01-01 & 0.05\% & 0.33\% & -1.25\% & 1.16\% \\
+\hspace*{4ex}Education and communication & 1993-01-01 & 0.15\% & 0.23\% & -1.72\% & 1.12\% \\
+\hspace*{8ex}Education & 1993-01-01 & 0.37\% & 0.17\% & -0.24\% & 1.19\% \\
+\hspace*{8ex}Communication & 1998-01-01 & -0.09\% & 0.41\% & -3.31\% & 1.81\% \\
+\hspace*{4ex}Other goods and services & 1967-01-01 & 0.41\% & 0.40\% & -0.98\% & 4.07\% \\
+\hspace*{8ex}Tobacco and smoking products & 1986-01-01 & 0.56\% & 1.60\% & -5.19\% & 17.74\% \\
+\hspace*{8ex}Personal care & 1999-01-01 & 0.19\% & 0.21\% & -0.28\% & 1.16\% \\
+\end{tabular}
+
+
+
+\caption{Overview of the used CPI items}
+\label{table:overview}
+\end{table}
+\end{adjustwidth}
+
+
+
+ \begin{adjustwidth}{-2cm}{}
+\begin{table}
+
+
+\begin{tabular}{lllll}
+{} & {1952} & {1972} & {1992} & {2012} \\
+{FRED Name} & {} & {} & {} & {} \\
+\hspace*{0ex}All items & 100.00\% & 100.00\% & 100.00\% & 100.00\% \\
+\hspace*{4ex}Food and beverages & NA & NA & 17.40\% & 15.26\% \\
+\hspace*{8ex}Food & 29.84\% & 22.49\% & 15.78\% & 14.31\% \\
+\hspace*{4ex}Housing & 32.18\% & 33.86\% & 41.40\% & 41.02\% \\
+\hspace*{8ex}Shelter & 17.46\% & 21.83\% & 27.88\% & 31.68\% \\
+\hspace*{8ex}Fuels and utilities & NA & 4.71\% & 7.28\% & 5.30\% \\
+\hspace*{8ex}Household furnishings and operations & 6.45\% & 7.32\% & 6.24\% & 4.04\% \\
+\hspace*{4ex}Apparel & 9.42\% & 10.37\% & 6.00\% & 3.56\% \\
+\hspace*{8ex}Mens and boys apparel & 3.00\% & 2.80\% & 1.42\% & 0.86\% \\
+\hspace*{8ex}Womens and girls apparel & 4.16\% & 3.98\% & 2.46\% & 1.50\% \\
+\hspace*{8ex}Footwear & 1.44\% & 1.57\% & 0.80\% & 0.70\% \\
+\hspace*{8ex}Infants and toddlers apparel & NA & NA & 0.19\% & 0.20\% \\
+\hspace*{4ex}Transportation & 11.33\% & 13.13\% & 17.01\% & 16.85\% \\
+\hspace*{8ex}Private transportation & 10.11\% & 11.66\% & 15.48\% & 15.66\% \\
+\hspace*{8ex}Public transportation & 1.22\% & 1.47\% & 1.53\% & 1.19\% \\
+\hspace*{4ex}Medical care & 4.78\% & 6.45\% & 6.93\% & 7.16\% \\
+\hspace*{8ex}Medical care commodities & NA & NA & 1.28\% & 1.71\% \\
+\hspace*{8ex}Medical care services & 3.99\% & 5.58\% & 5.65\% & 5.45\% \\
+\hspace*{4ex}Recreation & NA & 3.77\% & NA & 5.99\% \\
+\hspace*{8ex}Video and audio & NA & NA & NA & 1.90\% \\
+\hspace*{4ex}Education and communication & NA & NA & NA & 6.78\% \\
+\hspace*{8ex}Education & NA & NA & NA & 3.28\% \\
+\hspace*{8ex}Communication & NA & NA & NA & 3.50\% \\
+\hspace*{4ex}Other goods and services & 5.01\% & 5.09\% & 6.90\% & 3.38\% \\
+\hspace*{8ex}Tobacco and smoking products & NA & NA & 1.75\% & 0.80\% \\
+\hspace*{8ex}Personal care & 2.12\% & 2.57\% & 1.19\% & 2.57\% \\
+\end{tabular}
+
+
+\caption{Weights of the CPI items in some selected years. Not all weights are available at all time.}
+\label{table:weights}
+\end{table}
+\end{adjustwidth}
+
+
+ \begin{adjustwidth}{-2cm}{}
+\begin{longtable}{llp{6cm}}
+
+\toprule
+{} &          available since & motivation \\
+\midrule
+WTI                              & 1946-01-31 & The oil price is an important driver of the overall price level of the economy. A higher oil price contemporeanously affects CPI. It can be used to nowcast the inflation. Note, however, that the oil price can only be used to forecast CPI if it affects certain price categories with a *lag*.  \\
+Consumer\_Loans                       & 1947-01-31 & A decrease in consumer loans can lead to a decrease in consumer spending, which can cause a decrease in demand for goods and services.  \\
+Loans\_Leases                         & 1947-01-31 & Similar to consumer loans, but here also loans to enterprises are included.\\
+Unemployment\_Rate                       & 1948-01-31 & When unemployment is high, there’s little need for employers to “bid” for the services of employees by paying them higher wages. In times of high unemployment, wages typically remain stagnant, and wage inflation is non-existent. \\
+10Y\_Rate                                     & 1953-04-30 & Interest rate on government debt with 10 year maturity. When interest rates are high, borrowing becomes more expensive, and people tend to spend less money. This decrease in spending can lead to a decrease in demand for goods and services, which can lead to a decrease in prices and a decrease in the CPI . \\
+FFER                                     & 1954-07-31 &  Fed Funds effective rate: Interest rate on short term loans between banks. Same motiviation as for 10 Y rates. \\
+
+Real\_M1                             & 1959-01-31 & M1, M2, and M3 are monetary aggregates that represent different measures of the money supply in an economy. M1 is the narrowest measure of the money supply and includes currency, demand deposits, and other liquid assets. M2 and M3 include other liquid assets.  (An increase in the money supply (M1 to M3) can lead to inflation, which can cause the CPI to rise.)\\
+M1                                     & 1959-01-31 & see Real\_M1\\
+M2                           & 1959-01-31  & see Real\_M1 \\
+Real\_M2                       & 1959-01-31 & see Real\_M1 \\
+M3                                    & 1960-01-31  & see Real\_M1\\
+JPY                                 & 1971-01-31 &  Exchange rate (Japan), import prices may rise, triggering increases in the CPI of the home country. \\
+CAD                               & 1971-01-31 & Exchange rate (Canada), see JPY for motivation \\
+GBP                                   & 1971-01-31  & Exchange rate (United Kingdom), see JPY for motivation \\
+Real\_Borad\_Effective\_Exchange          & 1994-01-31 & Exchange rate (aggregate, real), see JPY for motivation \\
+Inflation\_Exp\_Market\_10YR & 1982-01-31 & Market expectation of inflation (10Y expectatin) derived from prices of inflation protected bonds. \\
+Inflation\_Exp\_Market\_1YR & 1982-01-31  & Market expectation of inflation (1Y expectatin) derived from prices of inflation protected bonds. \\
+
+\bottomrule
+
+
+
+\caption{Additional variables used to forecast CPI}
+\label{table:motivation}
+\end{longtable}
+\end{adjustwidth}
+
+
 \subsection{Data Visualization}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{cpi_vs_trend.pdf}
+    \caption{CPI (seasonally) adjusted index over time}
+    \label{fig:cpi_vs_trend}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{cpi_vs_target_yoy.pdf}
+    \caption{Year over Year changes of CPI vs target}
+    \label{fig:cpi_vs_target_yoy}
+\end{figure}
+
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{cpi_vs_target_mom.pdf}
+    \caption{annualized month over over month changes of CPI vs target}
+    \label{fig:cpi_vs_target_mom}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{weights.pdf}
+    \caption{Weights in the cpi basket}
+    \label{fig:weights}
+\end{figure}
+
  build data visualization based on the data exploration in the 
+
+Average inflation, distribution, volatility by item, weights over time, seasonality, 
 
 \section{Methodology}
 \subsection{Data Preprocessing}
+
+The FRED API requires registering and getting an API key. Registering at FRED is free and you get an API key within minutes. However, we should never hardcode authentication credentials like tokens, keys, or app-related secrets into code published to Github.  
+I checked several ways to solve the problem here: \href{https://docs.github.com/en/rest/overview/keeping-your-api-credentials-secure?apiVersion=2022-11-28}{Keeping your API credentials secure (Github post)}. I decided to use the Python dotenv package, because it is a straightforward solution. Instructions on how to write the API key into the environment is provided in the submission comment for the project. 
+
+
+The overall goal of the CPI-U index is to use consumer spending from as recent a period as possible, and hold the set (or more precisely, the quantity mix) of goods and services purchased fixed over time until new spending weights can be introduced. In general, estimates of current period inflation calculated with outdated spending weights tend to be higher than inflation estimates calculated with more current spending weights. This is because consumers change, or substitute, what they buy over time, often shifting purchases away from items that are becoming relatively more expensive to alternatives whose prices are not rising as fast.
+
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{cpi_weights_example.png}
+    \caption{Example of the subcompents of the CPI}
+    \label{fig:cpisub}
+\end{figure}
+
+The CPI weights are unfortunately not available directly through an API as far as I have seen. The weights can however be downloaded by scraping the website of the U.S. Bureau of Labor Statistics (BLS). Building the historical weights is however not straightforward, as the names change slightly over time. 
+The subbaskets of the CPI are aggregated to categories with different granularity levels. As shown in Figure \ref{fig:cpisub}, the "food and beverages" component (identation level 1) is further divided into "Food" (identation level 2) which can be furtther divided into "Food at home" (level 3)..
+Combining the weights (scraped from the U.S. Labor Statistics webpage) with the Index series downloaded from FRED requires some extra effort, because 1) the names do not match exaclty  2) not all CPI baskets reported on the BLS webpage can be downloaded from FRED. 
+To match the data I followed the following steps:
+\begin{itemize}
+\item Download all series available from FRED until identation level 2 (i.e. "Food at home" in figure \ref{fig:cpisub})
+\item Match them by name with the weighting data from BLS. In cases where the matching is not possible (because of slightly differnt spelling) a manual mapping is used. Construction of a manual mapping is necessary since the names of the items change over time. 
+For instance the item "fuels and utilities" has over 4 different names over time ("Fuels and utilities", "HOUSEHOLD FUELS AND OTHER UTILITIES", "Fuel and other utilities" and "Fuel and utilities")
+\end{itemize}
+The weighting data from the BLS war hard to clean. The history does not come through an API but rather requires the download of Excel, ZIP and text files. The format of the data has changed 5 times in total:
+\begin{itemize}
+\item The data between 1952 and 1986 comes in one Excel File
+\item Between 1952 and 1981 the data comes  in a sheet of an Excel (several years in one sheet, 1-2 sheets per decade).
+\item Between 1982 and 1986 the data comes in several sheets (one sheet per year).
+\item Between 1987 and 2018  the data comes in individual txt files (one file per year). The format has changed considerably over time and is not machine friendly. The relevant items need to be extracted with regular expressions.
+\item Between 2018 and 2022 the data comes in individual txt files (one file per year). 
+\end{itemize}
+
 describe the steps taken to preprocess the data and address any abnormalities in the data sets. If data preprocessing is not needed, please explain why.
 \subsection{Implementation}
 discuss the process using the models, algorithms, and techniques applied to solve the problem. Any complications during the implementation should be mentioned.
+
+
+Lasso, Elastic net.
+Regression, moving averages, univarite, economic variables, quadratic
+
+
+
 \subsection{Refinement}
 describe the process to refine the algorithms and techniques, such as using cross-validation or changing the parameter settings.
 
 \section{Results}
 \subsection{Model Evaluation and Validation}
 discuss the models and parameters used in the methodology. If no model is used, students can discuss the methodology using data visualizations and other means.
+Chosen parameters
+
+
 \subsection{Justification}
  discuss the final results in detail and explain why some models, parameters, or techniques perform better over others. Show and compare the results in tabular forms or charts.
 
@@ -46,6 +315,10 @@ discuss the models and parameters used in the methodology. If no model is used, 
 \subsection{Improvement}
  provide suggestions for the next research to improve the experiment.
 
+The problems of data availability and of data revisions are set aside in this investigation.
+Thus, it is assumed that all series become available simultaneously in their final revised form.
+In reality, however, some series are available only with a considerable lag, or are likely to be
+revised significantly during the quarters that follow their initial publication. 9
 
 
 \end{document}
