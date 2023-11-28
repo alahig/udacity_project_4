@@ -124,43 +124,6 @@ def clean_data(data_cpi, data_indentation, data_cpi_w, data_add_vars, t_split):
     return X, Y, cols
 
 
-def build_model():
-    """Builds the classifier¨
-      The classifier is a RandomForest using:
-      - nlp pipeline (TFID)
-      - meta data (lenght of the tweet, precence of ?, ...)
-    The classifier is wrapped with a GridSearchCV in order
-    to run the parameter search.
-
-    Returns:
-        GridSearchCV: classifier to be fitted
-    """
-    tok = CustomTokenizer()
-    cv = CountVectorizer(tokenizer=tok)
-    tf = TfidfTransformer()
-    cl = MultiOutputClassifier(RandomForestClassifier(), n_jobs=8)
-
-    pipeline = Pipeline(
-        [
-            (
-                "features",
-                FeatureUnion(
-                    [
-                        ("nlp_pipeline", Pipeline([("count", cv), ("tfid", tf)])),
-                        ("word_type_counter", SentenceMetaData()),
-                    ]
-                ),
-            ),
-            ("classifier", cl),
-        ]
-    )
-
-    from models.chosen_parameters import parameters
-
-    clf = GridSearchCV(pipeline, parameters)
-    return clf
-
-
 def evaluate_model(model, X_test, Y_test):
     """Runs the model on X_test.
     Compares the results to Y_test and prints the RMSE
@@ -200,45 +163,3 @@ def save_model(model, model_filepath):
         model_filepath (str): name of the file to use as storage
     """
     pickle.dump(model, open(model_filepath, "wb"))
-
-
-def main():
-    if len(sys.argv) in [3, 4]:
-        if len(sys.argv) == 4:
-            assert sys.argv[3] == "fast", f"Invalid flag: {sys.argv[3]}"
-            # Use this to accelerate the training by using only few datapoints
-            # Can be used to demonstrate the code works.
-            fast = True
-        else:
-            fast = False
-
-        database_filepath, model_filepath = sys.argv[1:3]
-        print("Loading data...\n    DATABASE: {}".format(database_filepath))
-        X, Y, category_names = load_data(database_filepath, fast=fast)
-        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2)
-
-        print("Building model...")
-        model = build_model()
-
-        print("Training model...")
-        model.fit(X_train, Y_train)
-
-        print("Evaluating model...")
-        evaluate_model(model, X_test, Y_test, category_names)
-
-        print("Saving model...\n    MODEL: {}".format(model_filepath))
-        save_model(model, model_filepath)
-
-        print("Trained model saved!")
-
-    else:
-        print(
-            "Please provide the filepath of the disaster messages database "
-            "as the first argument and the filepath of the pickle file to "
-            "save the model to as the second argument. \n\nExample: python "
-            "train_classifier.py ../data/DisasterResponse.db classifier.pkl"
-        )
-
-
-if __name__ == "__main__":
-    main()

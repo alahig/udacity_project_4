@@ -43,46 +43,18 @@ bash
       You will need to store the key into the .env file by running the command which I gave on the submission comment for the project. 
       
 
-    - To run ML pipeline that trains classifier and saves
-        `python models/train_classifier.py data/DisasterResponse.db models/classifier.pkl`
+    - The analysis that was used to create the report is here:
         
-    Training takes quite a while. To demonstrate the functionality of the code there is the possibility
-    to pass a flag "fast" so that the training is only done on a subpart of the data (first 1000 rows, 5 features).
-    `python models/train_classifier.py data/DisasterResponse.db models/classifier.pkl fast`
-    The accuracy is of course then low on the test set, given the limited data used.
-
-2. Go to `app` directory: `cd app`
-
-3. Run your web app: `python run.py`
-
-4. Click the `PREVIEW` button to open the homepage
+        `udacity_inflation_forecast/udacity_inflation_forecast/notebooks/analysis_report.ipynb`
+        
 
 ### Code basis
 
 The code is organized as follows:
-- The webapp is included in the app folder.
-- The data folder contains the script The ETL script. The script takes the file paths of the two datasets and database, cleans the datasets, and stores the clean data into a SQLite database in the specified database file path.
-The cleaning procedure splits the categories column into separate columns, converts values to binary, and drops duplicates.
-- The models folder contains the script to train the model. The script train_classifier.py takes the database file path and model file path, creates and trains a classifier, and stores the classifier into a pickle file to the specified model file path.
-The script uses a custom tokenize function using nltk to case normalize, lemmatize, and tokenize text. Moreover, the function replaces named entities, dates, places etc. 
-The model is a RandomForest which uses TF-IDF as well as meta data of the sentence (precence of ?, length of sentence, ...). The used features are selected using GridSearchCV.
+- The data folder contains the script The ETL script. The script downloads data from the internet from various sources, cleans the datasets, and stores the clean data into a SQLite database in the specified database file path.
+- The models folder contains the script to train the model. The different models tested are stored in models.py.
+The model is a linear regression that uses cross validation to select the relevant variables. 
 
-- app
-| - template
-| |- master.html  # main page of web app
-| |- go.html  # classification result page of web app
-|- run.py  # Flask file that runs app
-
-- data
-| - disaster_categories.csv  # data to process 
-| - disaster_messages.csv  # data to process
-| - process_data.py # data process script: Load, merge, clean and store the data in a database.
-- models
-| - train_classifier.py # training script: train the classifier, export the model to a pickle file
-| - models
-| | - chosen_parameters.py # The parameters over which the GridSearchCV is ran
-| | - custom_tokenizer.py # The custom tokenizer which is parametrised
-| | - sentence_meta_data_extractor.py # The tool used to extract meta data of the tweets (length, ...)
 
 - README.md
 
